@@ -1,0 +1,77 @@
+import type { Interview } from "@/components/InterviewCard";
+
+export const userInterviews: Interview[] = [
+  {
+    id: "u1",
+    role: "Frontend Engineer",
+    type: "Technical",
+    techstack: ["React", "TypeScript", "Next", "GraphQL"],
+    createdAt: "2026-04-22T10:00:00.000Z",
+    score: 84,
+    cover: "🪐",
+    coverGradient: "bg-gradient-to-br from-violet-500 to-indigo-700",
+  },
+  {
+    id: "u2",
+    role: "Product Manager",
+    type: "Behavioral",
+    techstack: ["Figma", "Jira", "Notion"],
+    createdAt: "2026-04-15T10:00:00.000Z",
+    score: 78,
+    cover: "🛰️",
+    coverGradient: "bg-gradient-to-br from-cyan-500 to-blue-700",
+  },
+  {
+    id: "u3",
+    role: "Research Scientist",
+    type: "Scientific",
+    techstack: ["Python", "PyTorch", "R"],
+    createdAt: "2026-04-02T10:00:00.000Z",
+    score: 91,
+    cover: "🔬",
+    coverGradient: "bg-gradient-to-br from-fuchsia-500 to-pink-700",
+  },
+];
+
+export const availableInterviews: Interview[] = [
+  {
+    id: "a1",
+    role: "Senior React Engineer",
+    type: "Technical",
+    techstack: ["React", "TypeScript", "Node.js", "AWS"],
+    createdAt: "2026-05-01T10:00:00.000Z",
+    score: null,
+    cover: "✦",
+    coverGradient: "bg-gradient-to-br from-indigo-500 to-violet-700",
+  },
+  {
+    id: "a2",
+    role: "Marketing Director",
+    type: "Managerial",
+    techstack: ["Salesforce", "HubSpot", "Slack"],
+    createdAt: "2026-05-01T10:00:00.000Z",
+    score: null,
+    cover: "📣",
+    coverGradient: "bg-gradient-to-br from-rose-400 to-red-600",
+  },
+  {
+    id: "a3",
+    role: "Clinical Researcher",
+    type: "Scientific",
+    techstack: ["SPSS", "Python", "Tableau"],
+    createdAt: "2026-05-01T10:00:00.000Z",
+    score: null,
+    cover: "🧬",
+    coverGradient: "bg-gradient-to-br from-teal-400 to-cyan-600",
+  },
+  {
+    id: "a4",
+    role: "UX Designer",
+    type: "Creative",
+    techstack: ["Figma", "Notion", "Miro"],
+    createdAt: "2026-05-01T10:00:00.000Z",
+    score: null,
+    cover: "🎨",
+    coverGradient: "bg-gradient-to-br from-amber-400 to-orange-600",
+  },
+];
