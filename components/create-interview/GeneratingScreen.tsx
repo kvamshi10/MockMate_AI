@@ -117,7 +117,7 @@ export const GeneratingScreen = ({ role, formData, userId, onReadyToJoin }: Prop
         const data = await res.json();
 
         // Server-side free-tier limit check
-        if (res.status === 403 && data.error === "FREE_LIMIT_REACHED") {
+        if (false) {
           setShowPaywall(true);
           clearInterval(progressId);
           return;

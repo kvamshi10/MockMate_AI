@@ -116,7 +116,7 @@ export default function DashboardClientView({
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("latest");
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(12);
 
   // Get dynamic unique roles for filtering dropdown
   const uniqueRoles = useMemo(() => {
@@ -482,7 +482,13 @@ export default function DashboardClientView({
                         <div className="flex items-center gap-1.5 lg:justify-center text-xs">
                           <Clock className="h-3.5 w-3.5 text-emerald-400" />
                           <span>
-                            {interview.lastDurationSeconds ? formatDuration(interview.lastDurationSeconds) : "30m"}
+                            {(interview as any).duration && (interview as any).duration !== 99
+                              ? `${(interview as any).duration}m`
+                              : (interview as any).questionCount && (interview as any).questionCount !== 99
+                              ? `${(interview as any).questionCount} Qs`
+                              : interview.lastDurationSeconds 
+                              ? formatDuration(interview.lastDurationSeconds)
+                              : "30m"}
                           </span>
                         </div>
                       </div>
@@ -564,8 +570,8 @@ export default function DashboardClientView({
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => setPageSize(prev => prev + 10)}
-                  onKeyDown={(e) => e.key === 'Enter' && setPageSize(prev => prev + 10)}
+                  onClick={() => setPageSize(prev => Math.min(prev + 2, 12))}
+                  onKeyDown={(e) => e.key === 'Enter' && setPageSize(prev => Math.min(prev + 2, 12))}
                   className="px-6 py-3 rounded-full bg-white/5 border border-white/10 text-xs font-bold uppercase tracking-wider text-slate-300 hover:bg-white/10 hover:text-white transition-all active:scale-95 cursor-pointer select-none"
                 >
                   Show More Records

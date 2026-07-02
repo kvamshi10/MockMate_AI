@@ -212,7 +212,9 @@ export async function POST(req: Request) {
                     techStack: interviewData?.techstack || [],
                     interviewType: Array.isArray(interviewData?.type) ? interviewData.type.join(", ") : interviewData?.type || "technical",
                     createdAt: new Date().toISOString(),
-                    duration: call.durationSeconds ? `${Math.round(call.durationSeconds / 60)}m` : "30m",
+                    duration: interviewData?.duration && interviewData.duration !== 99 
+                        ? `${interviewData.duration}m` 
+                        : (call.durationSeconds ? `${Math.round(call.durationSeconds / 60)}m` : "30m"),
                     overallScore: score,
                     communicationScore: aiAnalysis.communicationScore,
                     technicalScore: aiAnalysis.technicalScore,

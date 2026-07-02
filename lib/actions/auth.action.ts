@@ -244,8 +244,14 @@ export async function getRecentUsers(limitCount: number = 4): Promise<string[]> 
             const isNetworkError =
                 error?.code === "ECONNRESET" ||
                 error?.errno === "ECONNRESET" ||
+                error?.code === "ENOTFOUND" ||
+                error?.errno === "ENOTFOUND" ||
+                error?.code === "EAI_AGAIN" ||
+                error?.errno === "EAI_AGAIN" ||
                 error?.type === "system" ||
                 error?.message?.includes("ECONNRESET") ||
+                error?.message?.includes("ENOTFOUND") ||
+                error?.message?.includes("EAI_AGAIN") ||
                 error?.message?.includes("fetch failed");
 
             if (isNetworkError && attempt < MAX_RETRIES) {
@@ -255,7 +261,7 @@ export async function getRecentUsers(limitCount: number = 4): Promise<string[]> 
             }
 
             // Non-retryable error or retries exhausted — fail silently, page still renders with fallback avatars
-            console.error(`Failed to fetch recent users (attempt ${attempt + 1}/${MAX_RETRIES + 1}):`, error);
+            console.warn(`Failed to fetch recent users (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${error.message || error}`);
             return [];
         }
     }

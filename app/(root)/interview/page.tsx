@@ -140,10 +140,109 @@ const InterviewContent = () => {
   const startedAtRef   = useRef<Date | null>(null);
   const endedAtRef     = useRef<Date | null>(null);
   const questionCountRef = useRef(0);
+  const askedQuestionsRef = useRef<string[]>([]);
+
+  const isValidNewQuestion = (text: string): boolean => {
+    if (!text || text.trim().length === 0) return false;
+
+    const clean = text.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"");
+    if (clean.length < 15) return false; // Too short to be a valid interview question
+
+    // 1. Prevent duplicate counting
+    // Check if the clean text is already present or similar to any previously asked question
+    const isDuplicate = askedQuestionsRef.current.some(prev => {
+      // Direct match or one contains the other (for chunk streaming/replays)
+      if (prev === clean || prev.includes(clean) || clean.includes(prev)) return true;
+      
+      // Basic word-based similarity check to catch minor variations/repeats
+      const prevWords = prev.split(/\s+/);
+      const cleanWords = clean.split(/\s+/);
+      const commonWords = prevWords.filter(w => cleanWords.includes(w));
+      const similarity = commonWords.length / Math.max(prevWords.length, cleanWords.length);
+      return similarity > 0.75; // More than 75% word overlap
+    });
+
+    if (isDuplicate) return false;
+
+    // 2. Question pattern check: must contain question indicator
+    const hasQuestionMark = text.includes('?');
+    const hasCommandPattern = /\b(describe|tell me about|walk me through|explain how|share an experience)\b/i.test(text);
+    if (!hasQuestionMark && !hasCommandPattern) return false;
+
+    // 3. Exclude Greetings and Intro checks
+    if (
+      clean.includes("welcome") ||
+      clean.includes("how are you") ||
+      clean.includes("nice to meet") ||
+      clean.includes("ready to start") ||
+      clean.includes("ready to begin") ||
+      clean.includes("can we start") ||
+      clean.includes("shall we start") ||
+      clean.includes("let's get started") ||
+      clean.includes("can you hear me") ||
+      (clean.includes("hello") && clean.length < 50) ||
+      (clean.includes("hi") && clean.length < 40)
+    ) {
+      return false;
+    }
+
+    // 4. Exclude Goodbye/Ending
+    if (
+      clean.includes("concludes our interview") ||
+      clean.includes("thank you for your time") ||
+      clean.includes("goodbye") ||
+      clean.includes("bye") ||
+      clean.includes("wish you the best") ||
+      clean.includes("that was the last question") ||
+      clean.includes("have a great day")
+    ) {
+      return false;
+    }
+
+    // 5. Exclude pure transition / acknowledgement statements
+    if (
+      (clean.startsWith("great") || clean.startsWith("okay") || clean.startsWith("perfect") || clean.startsWith("excellent") || clean.startsWith("that makes sense")) &&
+      !hasQuestionMark && 
+      clean.split(" ").length < 15
+    ) {
+      return false;
+    }
+
+    // 6. Exclude follow-up questions/clarifications
+    const lowercaseText = text.toLowerCase();
+    const isUnambiguousFollowUp = 
+      lowercaseText.includes("elaborate") ||
+      lowercaseText.includes("more detail") ||
+      lowercaseText.includes("explain that") ||
+      lowercaseText.includes("can you repeat") ||
+      lowercaseText.includes("what was the outcome") ||
+      lowercaseText.includes("give me an example");
+
+    const isShortFollowUp = 
+      clean.length < 35 && (
+        clean.includes("why") ||
+        clean.includes("can you") ||
+        clean.includes("how did you")
+      );
+
+    if (isUnambiguousFollowUp || isShortFollowUp) {
+      return false;
+    }
+
+    // If valid, save it to prevent duplicates
+    askedQuestionsRef.current.push(clean);
+    return true;
+  };
   // Guard: true once the user has spoken at least once in this session.
   // Prevents the nudge from firing during the assistant's opening question.
   const userHasSpokenRef = useRef(false);
   const shouldEndAfterNextUserAnswerRef = useRef(false);
+
+  // ── Speaking Pace & WPM Tracking ──
+  const userWordCountRef = useRef(0);
+  const userSpeakingDurationMsRef = useRef(0);
+  const userTurnStartRef = useRef<number | null>(null);
+  const [wpm, setWpm] = useState(0);
 
   // ── Feedback generation states ──
   const [generatingFeedback, setGeneratingFeedback] = useState(false);
@@ -222,7 +321,7 @@ const InterviewContent = () => {
     const isUserPremium = (plan !== "free" && !!planExpiresAt && new Date(planExpiresAt) > new Date()) || !!interviewData?.isPremium;
     const isFreeData = !isUserPremium;
 
-    const durationCap = (interviewData?.duration || 15) * 60; 
+    const durationCap = (interviewData?.duration || 0) * 60; 
     const questionCap = (interviewData?.questionCount || 5);
     
     const hitTimeLimit = secondsRef.current >= durationCap - 5; 
@@ -330,9 +429,14 @@ const InterviewContent = () => {
         setCallEndReason(null);
         questionCountRef.current = 0;
         setQuestionCount(0);
+        askedQuestionsRef.current = [];
         setGeneratingFeedback(false);
         setGeneratedFeedbackId(null);
         setFeedbackError(null);
+        userWordCountRef.current = 0;
+        userSpeakingDurationMsRef.current = 0;
+        userTurnStartRef.current = null;
+        setWpm(0);
       } else {
         console.log("[MockMate] Resuming call after network interruption. Restoring transcript history...");
         const transcriptText = msgsRef.current
@@ -377,11 +481,13 @@ Please seamlessly resume the interview from this point without mentioning the gl
       // Classify speaking states based on active transcription events
       if (role === 'user') {
         if (message.transcriptType === 'partial') {
+          if (userTurnStartRef.current === null) {
+            userTurnStartRef.current = Date.now();
+          }
           setUserSpeaking(true);
           setAssistantSpeaking(false);
         } else if (message.transcriptType === 'final') {
           setUserSpeaking(false);
-          // Mark that the user has spoken at least once — enables the nudge fail-safe
           userHasSpokenRef.current = true;
         }
       } else if (role === 'ai') {
@@ -390,23 +496,6 @@ Please seamlessly resume the interview from this point without mentioning the gl
           setUserSpeaking(false);
         } else if (message.transcriptType === 'final') {
           setAssistantSpeaking(false);
-        }
-      }
-
-      // Count AI questions (heuristic: ends with '?' or is a final AI message)
-      if (role === 'ai' && message.transcriptType === 'final') {
-        setAssistantSpeaking(false);
-
-        if (text.includes('?')) {
-          questionCountRef.current += 1;
-          setQuestionCount(questionCountRef.current);
-
-          const questionCap = (interviewData?.questionCount || 5);
-
-          if (questionCountRef.current >= questionCap) {
-            console.log(`[MockMate] Question limit reached (${questionCountRef.current}/${questionCap}). Next user answer will end the call.`);
-            shouldEndAfterNextUserAnswerRef.current = true;
-          }
         }
       }
 
@@ -420,7 +509,57 @@ Please seamlessly resume the interview from this point without mentioning the gl
           return next;
         });
 
-        // Check if user finished answering and the end flag is active
+        if (role === 'ai') {
+          if (isValidNewQuestion(text)) {
+            const nextCount = questionCountRef.current + 1;
+            questionCountRef.current = nextCount;
+            setQuestionCount(nextCount);
+
+            const isByQuestions = interviewData?.amountMode === "questions";
+            const totalQuestions = interviewData?.questionCount || 5;
+
+            if (isByQuestions && nextCount >= totalQuestions) {
+              shouldEndAfterNextUserAnswerRef.current = true;
+            }
+          }
+        }
+
+        if (role === 'user') {
+          // 1. Calculate turn duration
+          let turnDurationMs = 0;
+          if (userTurnStartRef.current !== null) {
+            turnDurationMs = Date.now() - userTurnStartRef.current;
+            userTurnStartRef.current = null;
+          } else {
+            // fallback: assume 2.2 words per second
+            const words = text.split(/\s+/).filter(Boolean).length;
+            turnDurationMs = (words / 2.2) * 1000;
+          }
+
+          // Accumulate words and duration
+          const wordsCount = text.split(/\s+/).filter(Boolean).length;
+          userWordCountRef.current += wordsCount;
+          userSpeakingDurationMsRef.current += turnDurationMs;
+
+          // Recalculate WPM
+          const calculatedWpm = userSpeakingDurationMsRef.current > 0
+            ? Math.round((userWordCountRef.current / (userSpeakingDurationMsRef.current / 1000)) * 60)
+            : 0;
+          setWpm(calculatedWpm);
+
+          // Handle ending for By Questions mode
+          const isByQuestions = interviewData?.amountMode === "questions";
+          const totalQuestions = interviewData?.questionCount || 5;
+
+          if (isByQuestions && questionCountRef.current >= totalQuestions) {
+            console.log(`[MockMate] By Questions limit reached (${questionCountRef.current}/${totalQuestions}) and user answered. Ending interview.`);
+            vapi.stop();
+            completeInterviewSession();
+            return;
+          }
+        }
+
+        // Check if user finished answering and the end flag is active (for By Time mode timer expiration or By Questions limit)
         if (role === 'user' && shouldEndAfterNextUserAnswerRef.current) {
           console.log("[MockMate] User finished answering the last question. Ending call.");
           vapi.stop();
@@ -529,6 +668,26 @@ Please seamlessly resume the interview from this point without mentioning the gl
       }
     };
 
+    // ── Suppress daily-js / Vapi internal console.error noise ────────────────
+    const originalConsoleError = console.error;
+    console.error = (...args: any[]) => {
+      const msg = args
+        .map((arg) => (arg instanceof Error ? arg.message : String(arg ?? '')))
+        .join(' ')
+        .toLowerCase();
+
+      const isDailyTeardown =
+        msg.includes('meeting ended due to ejection') ||
+        msg.includes('meeting has ended') ||
+        msg.includes('daily-js') ||
+        (msg.includes('ejection') && msg.includes('ended'));
+
+      if (isDailyTeardown) {
+        return; // Silently discard expected Daily.co / Vapi teardown logs
+      }
+      originalConsoleError.apply(console, args);
+    };
+
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     vapi.on('call-start', onCallStart);
@@ -539,6 +698,7 @@ Please seamlessly resume the interview from this point without mentioning the gl
     vapi.on('error', onError);
 
     return () => {
+      console.error = originalConsoleError;
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       vapi.off('call-start', onCallStart);
       vapi.off('call-end', onCallEnd);
@@ -604,9 +764,10 @@ Please seamlessly resume the interview from this point without mentioning the gl
       setSeconds(nextSeconds);
       setTick((t) => t + 1);
 
-      const durationCap = (interviewData?.duration || 15) * 60;
+      const isByTime = interviewData?.amountMode === "time";
+      const durationCap = (interviewData?.duration || 0) * 60;
 
-      if (nextSeconds >= durationCap) {
+      if (isByTime && nextSeconds >= durationCap) {
         console.log(`[MockMate] Duration limit reached (${nextSeconds}/${durationCap}s).`);
         shouldEndAfterNextUserAnswerRef.current = true;
 
@@ -656,6 +817,10 @@ Please seamlessly resume the interview from this point without mentioning the gl
         msgsRef.current = [];
         setSeconds(0);
         shouldEndAfterNextUserAnswerRef.current = false;
+        userWordCountRef.current = 0;
+        userSpeakingDurationMsRef.current = 0;
+        userTurnStartRef.current = null;
+        setWpm(0);
       }
       
       try {
@@ -826,7 +991,8 @@ Please seamlessly resume the interview from this point without mentioning the gl
           {callStatus === 'ACTIVE' && (
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full glass text-xs text-white">
               <span className="h-2 w-2 rounded-full bg-success-100 animate-pulse-glow" />
-              Recording · {formatTime(seconds)} / {formatTime((interviewData?.duration || 15) * 60)}
+              Recording · {formatTime(seconds)}
+              {interviewData?.amountMode === "time" && ` / ${formatTime((interviewData?.duration || 0) * 60)}`}
             </div>
           )}
         </div>
@@ -1175,38 +1341,69 @@ Please seamlessly resume the interview from this point without mentioning the gl
               <Sparkles className="h-4 w-4 text-aurora" />
               Session Insights
             </h3>
-            <div className="mt-4 space-y-5">
-              <div>
-                <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                  <span>Interview Progress</span>
-                  <span className="text-foreground">{Math.min(100, Math.round((questionCount / (interviewData?.questionCount || 5)) * 100))}%</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                  <div 
-                    className="h-full bg-aurora rounded-full transition-all duration-500" 
-                    style={{ width: `${(questionCount / (interviewData?.questionCount || 5)) * 100}%` }} 
-                  />
-                </div>
-              </div>
+            <div className="mt-4 space-y-4">
+              {(() => {
+                const isByTime = interviewData?.amountMode === "time";
+                const totalDuration = (interviewData?.duration || 0) * 60;
+                const totalQuestions = interviewData?.questionCount || 5;
+                const progress = isByTime
+                  ? Math.min(100, Math.round((seconds / totalDuration) * 100))
+                  : Math.min(100, Math.round((questionCount / totalQuestions) * 100));
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Time</p>
-                  <p className="text-sm font-semibold text-white mt-1">{formatTime(seconds)} / {formatTime((interviewData?.duration || 15) * 60)}</p>
-                </div>
-                <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Questions</p>
-                  <p className="text-sm font-semibold text-white mt-1">{questionCount} / {interviewData?.questionCount || 5}</p>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-white/5">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold mb-2 tracking-widest">Speaking Pace</p>
-                <div className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${isSpeaking ? 'bg-success-100 animate-pulse' : 'bg-secondary'}`} />
-                  <span className="text-xs text-white/80">{isSpeaking ? 'Analyzing flow...' : 'Awaiting response'}</span>
-                </div>
-              </div>
+                return (
+                  <>
+                    {isByTime ? (
+                      // BY TIME MODE
+                      <div className="space-y-3 font-medium text-sm text-white/80">
+                        <div className="flex justify-between border-b border-white/5 pb-2">
+                          <span className="text-muted-foreground">Time:</span>
+                          <span className="text-white">{formatTime(seconds)} / {formatTime(totalDuration)}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-2">
+                          <span className="text-muted-foreground">Questions:</span>
+                          <span className="text-white">{questionCount}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-2">
+                          <span className="text-muted-foreground">Progress:</span>
+                          <span className="text-white">{progress}%</span>
+                        </div>
+                        <div className="flex justify-between pb-1">
+                          <span className="text-muted-foreground">Speaking Pace:</span>
+                          <span className="text-white">{wpm} WPM</span>
+                        </div>
+                      </div>
+                    ) : (
+                      // BY QUESTIONS MODE
+                      <div className="space-y-3 font-medium text-sm text-white/80">
+                        <div className="flex justify-between border-b border-white/5 pb-2">
+                          <span className="text-muted-foreground">Time:</span>
+                          <span className="text-white">{formatTime(seconds)}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-2">
+                          <span className="text-muted-foreground">Questions:</span>
+                          <span className="text-white">{questionCount} / {totalQuestions}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/5 pb-2">
+                          <span className="text-muted-foreground">Progress:</span>
+                          <span className="text-white">{progress}%</span>
+                        </div>
+                        <div className="flex justify-between pb-1">
+                          <span className="text-muted-foreground">Speaking Pace:</span>
+                          <span className="text-white">{wpm} WPM</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Progress bar visual decoration */}
+                    <div className="h-1.5 rounded-full bg-secondary overflow-hidden mt-3">
+                      <div 
+                        className="h-full bg-aurora rounded-full transition-all duration-500" 
+                        style={{ width: `${progress}%` }} 
+                      />
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
           

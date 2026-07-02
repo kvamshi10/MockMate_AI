@@ -444,7 +444,9 @@ Provide a comprehensive, constructive feedback report in the required JSON schem
         experienceLevel: aiAnalysis.experienceLevel || interviewData?.level || "mid-level",
         techStack: aiAnalysis.techStack || interviewData?.techstack || [],
         interviewType: aiAnalysis.interviewType || "technical",
-        duration: aiAnalysis.duration || "30m",
+        duration: (interviewData?.duration && interviewData.duration !== 99) 
+            ? `${interviewData.duration}m` 
+            : (aiAnalysis.duration || "30m"),
         createdAt: now,
 
         // Core scores

@@ -243,11 +243,19 @@ export default function PremiumFeedbackDashboard() {
               },
               transcript: {
                 fullText: typeof latestFb.transcript === 'string' ? latestFb.transcript : "",
-                segments: Array.isArray(latestFb.transcript) ? latestFb.transcript.map((t: any) => ({
-                  speaker: t.speaker || "Candidate",
-                  message: t.message || t.text || "",
-                  timestamp: t.timestamp || ""
-                })) : (latestFb.transcriptData?.segments || [])
+                segments: Array.isArray(latestFb.transcript)
+                  ? latestFb.transcript.map((t: any) => ({
+                      speaker: t.speaker || "Candidate",
+                      message: t.message || t.text || "",
+                      timestamp: t.timestamp || ""
+                    }))
+                  : Array.isArray(latestFb.transcriptData?.segments)
+                    ? latestFb.transcriptData.segments.map((t: any) => ({
+                        speaker: t.speaker || "Candidate",
+                        message: t.message || t.text || "",
+                        timestamp: t.timestamp || ""
+                      }))
+                    : []
               },
               questionAnalysis: (latestFb.structuredQuestionAnalysis || latestFb.questionAnalysis || latestFb.questionFeedback || []).map((q: any) => ({
                 question: q.question || "",
@@ -413,7 +421,7 @@ export default function PremiumFeedbackDashboard() {
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-violet-500 via-fuchsia-400 to-cyan-500 opacity-60" />
           <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-aurora/5 blur-3xl pointer-events-none" />
 
-          <div className="grid md:grid-cols-[1fr_auto] gap-8 items-center">
+          <div className="grid lg:grid-cols-[1fr_auto] gap-8 items-center">
             <div className="space-y-6">
               <div>
                 <span className="px-3.5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-aurora">
@@ -459,7 +467,7 @@ export default function PremiumFeedbackDashboard() {
               <CircularRing value={score} />
               <div className="mt-4 text-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Final Recommendation</span>
-                <span className={`inline-block py-1.5 px-4 rounded-xl border text-xs font-extrabold tracking-wide mt-2 ${
+                <span className={`inline-block max-w-[280px] break-words whitespace-normal py-1.5 px-4 rounded-xl border text-xs font-extrabold tracking-wide mt-2 ${
                   hiringRec.toLowerCase().includes("strong") ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]" :
                   hiringRec.toLowerCase().includes("no") ? "bg-red-500/10 border-red-500/30 text-red-400" :
                   hiringRec.toLowerCase().includes("lean") ? "bg-amber-500/10 border-amber-500/30 text-amber-400" :
@@ -871,7 +879,7 @@ export default function PremiumFeedbackDashboard() {
                             ? 'bg-gradient-to-br from-violet-600/10 to-indigo-600/10 border border-violet-500/20 rounded-tl-none text-white' 
                             : 'bg-white/[0.02] border border-white/8 rounded-tr-none text-white/90 shadow-md'
                         }`}>
-                          {segment.message}
+                          {segment.message || segment.text}
                         </div>
                       </div>
                     );

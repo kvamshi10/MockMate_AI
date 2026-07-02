@@ -12,6 +12,8 @@ import GeneratingScreen from "@/components/create-interview/GeneratingScreen";
 import BreathingScreen from "@/components/create-interview/BreathingScreen";
 import PaywallModal from "@/components/PaywallModal";
 
+import { availableInterviews } from "@/constants/interviews";
+
 type Screen = "choice" | "form" | "voice" | "generating" | "breathing" | "interview";
 
 export default function NewInterviewPage() {
@@ -47,11 +49,11 @@ function NewInterviewContent() {
 
       // ✅ Check plan + count UPFRONT before anything is shown
       const { isPremium, interviewCount } = await getUserPlanAndCount(u.uid);
-      const onFreeTier = !isPremium;
-      setIsFree(onFreeTier);
+      const onFreeTier = false; // Bypassed paywall and limits before interview starts
+      setIsFree(false);
 
       // If free user already has ≥2 interviews, show paywall immediately
-      if (onFreeTier && interviewCount >= 2 && !id) {
+      if (false) {
         setShowPaywall(true);
       }
 
@@ -65,8 +67,7 @@ function NewInterviewContent() {
             setScreen("breathing");
           } else {
             // Check if it's a preset interview from constants
-            const { availableInterviews } = require("@/constants/interviews");
-            const preset = availableInterviews.find((i: any) => i.id === id);
+            const preset = availableInterviews.find((i: any) => i.id === id) as any;
             if (preset) {
               setRole(preset.role);
               setFormData({

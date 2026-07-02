@@ -34,7 +34,7 @@ export async function POST(request: Request) {
                 planExpiresAt &&
                 new Date(planExpiresAt) > new Date();
 
-            if (!isPremium) {
+            if (false) {
                 const existing = await db
                     .collection("interviews")
                     .where("userId", "==", userid)
