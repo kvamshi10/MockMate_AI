@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Mona_Sans } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 
 import "./globals.css";
 import {Toaster} from "sonner";
 
-const monaSans = Mona_Sans({
-    variable: "--font-mona-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+    variable: "--font-plus-jakarta-sans",
     subsets: ["latin"],
 });
 
@@ -21,7 +21,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" className="dark" suppressHydrationWarning>
-            <body className={`${monaSans.className} antialiased pattern`} suppressHydrationWarning>
+            <body className={`${plusJakartaSans.className} antialiased pattern`} suppressHydrationWarning>
                 {children}
 
                 <Toaster />
